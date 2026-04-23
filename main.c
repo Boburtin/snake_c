@@ -88,8 +88,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
 
   HWND hwnd =
       CreateWindowEx(0, CLASS_NAME, L"Snake by 3_meo",
-                     WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
-                     CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left,
+                     style, CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left,
                      rc.bottom - rc.top, NULL, NULL, hInstance, NULL);
   if (hwnd == NULL) {
     return 0;
