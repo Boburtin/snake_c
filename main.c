@@ -21,20 +21,21 @@ typedef struct {
 
 typedef enum { RIGHT, DOWN, LEFT, UP } Direction;
 
-static Pvec DIR_DELTAS[] = {
-    [RIGHT] = {1, 0}, [DOWN] = {0, 1}, [LEFT] = {-1, 0}, [UP] = {0, -1}};
+static Pvec DIR_DELTAS[4] = {
+  {1, 0}, {0, 1}, {-1, 0}, {0, -1}
+};
 
 typedef struct {
   Direction dir;
   Direction pen_dir;
-  Pvec cells[ROWS * COLS];
+  int *cells;
   int head;
   int len;
 } Snake;
 
-Snake snake = {0};
-Pvec food;
-int board[ROWS * COLS];
+Snake *snake;
+int food;
+int *board;
 
 HBRUSH hBrushSnake;
 HBRUSH hBrushFood;
@@ -42,35 +43,33 @@ HBRUSH hBrushBg;
 
 typedef enum { EMPTY, FOOD, SNAKE_BODY } TileItems;
 
-BOOL CanPlaceFood(Pvec p) {
-  for (int i = 0; i < snake.len; i++) {
-    int idx = (snake.head - i + ROWS * COLS) % (ROWS * COLS);
-    if (snake.cells[idx].x == p.x && snake.cells[idx].y == p.y) {
+BOOL CanPlaceFood(int p) {
+  for (int i = 0; i < snake->len; i++) {
+    int idx = (snake->head - i + ROWS * COLS) % (ROWS * COLS);
+    if (snake->cells[idx] == p)
       return FALSE;
-    }
   }
   return TRUE;
 }
 
-void WipeBoard(int* board, int b_size) {
-  memset(board, 0, sizeof(int) * b_size);
-}
-
 void InitGameState(void) {
-  snake.head = 0;
-  snake.len = 1;
-  snake.dir = RIGHT;
-  snake.pen_dir = RIGHT;
-  snake.cells[0] = (Pvec){START_X, START_Y};
+  snake->head = 0;
+  snake->len = 1;
+  snake->dir = RIGHT;
+  snake->pen_dir = RIGHT;
+  snake->cells[0] = START_INDEX;
   do {
-    food.x = (rand() % COLS);
-    food.y = (rand() % ROWS);
+    food = rand() % (ROWS * COLS);
   } while (!CanPlaceFood(food));
-  board[(food.y * COLS) + food.x] = FOOD;
+  board[food] = FOOD;
   board[START_INDEX] = SNAKE_BODY;
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
+  board = malloc(sizeof(int) * ROWS * COLS);
+  snake = malloc(sizeof(Snake));
+  snake->cells = malloc(sizeof(int) * ROWS * COLS);
+
   srand(time(NULL));
   hBrushSnake = CreateSolidBrush(RGB(255, 255, 255));
   hBrushFood = CreateSolidBrush(RGB(0, 255, 0));
@@ -85,7 +84,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
   RECT rc = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
   DWORD style = WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
   AdjustWindowRectEx(&rc, style, FALSE, 0);
-
   HWND hwnd =
       CreateWindowEx(0, CLASS_NAME, L"Snake by 3_meo",
                      style, CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left,
@@ -95,8 +93,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
   }
   ShowWindow(hwnd, nCmdShow);
   InitGameState();
-  SetTimer(hwnd, 1, 150, NULL);
 
+  SetTimer(hwnd, 1, 150, NULL);
   MSG msg;
   while (GetMessage(&msg, NULL, 0, 0)) {
     TranslateMessage(&msg);
@@ -107,28 +105,27 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
 }
 
 BOOL UpdateGameState(void) {
-  snake.dir = snake.pen_dir;
-  Pvec next = {snake.cells[snake.head].x + DIR_DELTAS[snake.dir].x,
-               snake.cells[snake.head].y + DIR_DELTAS[snake.dir].y};
+  snake->dir = snake->pen_dir;
+  int head_idx = snake->cells[snake->head];
+  Pvec next = {(head_idx % COLS) + DIR_DELTAS[snake->dir].x, (head_idx / COLS) + DIR_DELTAS[snake->dir].y};
   if ((next.x < 0 || next.x >= COLS || next.y < 0 || next.y >= ROWS) ||
       board[(next.y * COLS) + next.x] == SNAKE_BODY) {
     return FALSE;
   }
-  if (next.x == food.x && next.y == food.y) {
-    snake.head = (snake.head + 1) % (ROWS * COLS);
-    snake.cells[snake.head] = next;
-    snake.len++;
+  if ((next.y * COLS) + next.x == food) {
+    snake->head = (snake->head + 1) % (ROWS * COLS);
+    snake->cells[snake->head] = (next.y * COLS) + next.x;
+    snake->len++;
     board[(next.y * COLS) + next.x] = SNAKE_BODY;
     do {
-      food.x = (rand() % COLS);
-      food.y = (rand() % ROWS);
+      food = rand() % (ROWS * COLS);
     } while (!CanPlaceFood(food));
-    board[(food.y * COLS) + food.x] = FOOD;
+    board[food] = FOOD;
   } else {
-    int tail = (snake.head - snake.len + 1 + ROWS * COLS) % (ROWS * COLS);
-    board[(snake.cells[tail].y * COLS) + snake.cells[tail].x] = EMPTY;
-    snake.head = (snake.head + 1) % (ROWS * COLS);
-    snake.cells[snake.head] = next;
+    int tail = (snake->head - snake->len + 1 + ROWS * COLS) % (ROWS * COLS);
+    board[snake->cells[tail]] = EMPTY;
+    snake->head = (snake->head + 1) % (ROWS * COLS);
+    snake->cells[snake->head] = (next.y * COLS) + next.x;
     board[(next.y * COLS) + next.x] = SNAKE_BODY;
   }
   return TRUE;
@@ -138,6 +135,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
                             LPARAM lParam) {
   switch (uMsg) {
     case WM_DESTROY:
+      free(board);
+      free(snake->cells);
       PostQuitMessage(0);
       return 0;
     case WM_PAINT: {
@@ -145,17 +144,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
       HDC hdc = BeginPaint(hwnd, &ps);
       FillRect(hdc, &ps.rcPaint, hBrushBg);
 
-      for (int i = 0; i < snake.len; i++) {
-        int idx = (snake.head - i + ROWS * COLS) % (ROWS * COLS);
-        RECT cellRect = {snake.cells[idx].x * PX_PER_CELL,
-                         snake.cells[idx].y * PX_PER_CELL,
-                         snake.cells[idx].x * PX_PER_CELL + PX_PER_CELL,
-                         snake.cells[idx].y * PX_PER_CELL + PX_PER_CELL};
+      for (int i = 0; i < snake->len; i++) {
+        int idx = (snake->head - i + ROWS * COLS) % (ROWS * COLS);
+        int cx = snake->cells[idx] % COLS, cy = snake->cells[idx] / COLS;
+        RECT cellRect = {cx * PX_PER_CELL, cy * PX_PER_CELL, cx * PX_PER_CELL + PX_PER_CELL, cy * PX_PER_CELL + PX_PER_CELL};
         FillRect(hdc, &cellRect, hBrushSnake);
-      }  // food
-      RECT foodRect = {food.x * PX_PER_CELL, food.y * PX_PER_CELL,
-                       food.x * PX_PER_CELL + PX_PER_CELL,
-                       food.y * PX_PER_CELL + PX_PER_CELL};
+      }
+      RECT foodRect = {(food % COLS) * PX_PER_CELL, (food / COLS) * PX_PER_CELL,
+      (food % COLS) * PX_PER_CELL + PX_PER_CELL, (food / COLS) * PX_PER_CELL + PX_PER_CELL};
       FillRect(hdc, &foodRect, hBrushFood);
 
       EndPaint(hwnd, &ps);
@@ -163,7 +159,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
     }
     case WM_TIMER: {
       if (!UpdateGameState()) {
-        WipeBoard(board, COLS * ROWS);
+        for (int i = 0; i < COLS * ROWS; i++) board[i] = 0;
         InitGameState();
       }
       InvalidateRect(hwnd, NULL, FALSE);
@@ -173,24 +169,28 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
       Direction candidate;
       switch (wParam) {
         case VK_RIGHT:
+        case 'D':
           candidate = RIGHT;
           break;
         case VK_DOWN:
+        case 'S':
           candidate = DOWN;
           break;
         case VK_LEFT:
+        case 'A':
           candidate = LEFT;
           break;
         case VK_UP:
+        case 'W':
           candidate = UP;
           break;
         default:
           return 0;
       }
       Pvec canDir = DIR_DELTAS[candidate];
-      Pvec curDir = DIR_DELTAS[snake.dir];
+      Pvec curDir = DIR_DELTAS[snake->dir];
       if (canDir.x + curDir.x != 0 || canDir.y + curDir.y != 0) {
-        snake.pen_dir = candidate;
+        snake->pen_dir = candidate;
       }
       return 0;
     }
