@@ -1,14 +1,25 @@
 CC = gcc
-CFLAGS = -std=c23 -Wall -Wextra -municode -static -mwindows
-TARGET = bin/main.exe
+CFLAGS = -std=c23 -Wall -Werror -DUNICODE -D_UNICODE -masm=intel
+LDFLAGS = -static -municode -mwindows
+
+SRCDIR := src
+BUILDDIR := build
+TARGET := bin/csnake32
+SRCEXT := c
+
+SRCS := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
+OBJS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SRCS:.$(SRCEXT)=.o))
 
 all: $(TARGET)
 
-.PHONY: all clean install test
+$(TARGET): $(OBJS)
+	$(CC) $(LDFLAGS) $^ -o $@	
 
-$(TARGET): main.c
-	mkdir -p bin && \
-	$(CC) $(CFLAGS) -o $@ $<
+$(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
+	@mkdir -p $(BUILDDIR)
+	$(CC) $(CFLAGS) -c $< -o $@	
 
 clean: 
-		rm -f $(TARGET) 
+	@$(RM) -r $(BUILDDIR) $(TARGET)
+
+.PHONY: clean

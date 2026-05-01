@@ -1,0 +1,4 @@
+*.exe
+*.o
+.clang-format
+build/
